@@ -36,7 +36,7 @@ The development dependency on Pi 1.4.0 uses an npm override for a patched `undic
 
 ## Publish a version
 
-The npm name is `pi-skills`. If that name is unavailable when you publish, change `package.json` and the README installation command to an npm name you control. Keep the `pi-package` keyword and `pi.extensions` manifest so the package remains eligible for the [Pi package gallery](https://pi.dev/packages).
+The npm name is `@thgilciffart/pi-skills`. Keep the `pi-package` keyword and `pi.extensions` manifest so the package remains eligible for the [Pi package gallery](https://pi.dev/packages).
 
 For the first release, keep version `0.1.0`. For a later release, update the version before publishing.
 
@@ -44,7 +44,7 @@ For the first release, keep version `0.1.0`. For a later release, update the ver
 npm version patch
 ```
 
-Authenticate with the npm account that owns the package name.
+Authenticate with the `thgilciffart` npm account.
 
 ```bash
 npm login

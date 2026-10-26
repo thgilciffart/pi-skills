@@ -7,7 +7,7 @@ Manage skills from inside the [Pi coding agent](https://pi.dev). Browse skills a
 Use Node.js 22.20 or later and Pi 1.4 or later.
 
 ```bash
-pi install npm:pi-skills
+pi install npm:@thgilciffart/pi-skills
 ```
 
 Until the npm package is published, install from a local checkout.

@@ -1,5 +1,5 @@
 {
-  "name": "pi-skills",
+  "name": "@thgilciffart/pi-skills",
   "version": "0.1.0",
   "description": "Browse, toggle, find, install, and update skills in the Pi coding agent.",
   "type": "module",
