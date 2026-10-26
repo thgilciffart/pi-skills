@@ -39,14 +39,27 @@ export function replaceOverride(paths: string[], pattern: string, enabled: boole
   return [...paths.filter((path) => ![pattern, ...aliases].some((value) => ["+", "-", "!"].some((prefix) => path === `${prefix}${value}`))), `${enabled ? "+" : "-"}${pattern}`];
 }
 
-export async function setEnabled(settings: SettingsManager, entry: SkillEntry, enabled: boolean): Promise<void> {
+export interface SkillChange {
+  entry: SkillEntry;
+  enabled: boolean;
+}
+
+export function isEnabled(entry: SkillEntry): boolean {
+  return entry.resource?.enabled ?? entry.active;
+}
+
+export function canToggle(entry: SkillEntry): boolean {
+  return !!entry.resource && entry.resource.metadata.scope !== "temporary";
+}
+
+type ScopeSettings = ReturnType<SettingsManager["getGlobalSettings"]>;
+
+function applyEnabled(current: ScopeSettings, entry: SkillEntry, enabled: boolean): "packages" | "skills" {
   const resource = entry.resource;
   if (!resource || resource.metadata.scope === "temporary") {
     throw new Error("This skill comes from the CLI or another extension. Change its source configuration to toggle it.");
   }
   const { metadata } = resource;
-  const project = metadata.scope === "project";
-  const current = project ? settings.getProjectSettings() : settings.getGlobalSettings();
   if (metadata.origin === "package") {
     const packages = structuredClone(current.packages ?? []);
     const index = packages.findIndex((pkg) => (typeof pkg === "string" ? pkg : pkg.source) === metadata.source);
@@ -58,19 +71,48 @@ export async function setEnabled(settings: SettingsManager, entry: SkillEntry, e
     const pattern = relative(base, resource.path).split(sep).join("/");
     next.skills = replaceOverride(next.skills ?? [], pattern, enabled);
     packages[index] = next;
-    if (project) settings.setProjectPackages(packages);
-    else settings.setPackages(packages);
+    current.packages = packages;
+    return "packages";
   } else {
     // Absolute paths work for both .pi and .agents roots, whose bases differ.
     const base = metadata.baseDir;
     const alias = base ? relative(base, resource.path).split(sep).join("/") : resource.path;
     const paths = replaceOverride(current.skills ?? [], resource.path, enabled, [alias]);
-    if (project) settings.setProjectSkillPaths(paths);
-    else settings.setSkillPaths(paths);
+    current.skills = paths;
+    return "skills";
+  }
+}
+
+export async function setEnabledMany(settings: SettingsManager, changes: SkillChange[]): Promise<void> {
+  const scopes = new Map<boolean, { current: ScopeSettings; fields: Set<"packages" | "skills"> }>();
+  // Validate the full selection before scheduling any writes.
+  for (const { entry, enabled } of changes) {
+    const project = entry.resource?.metadata.scope === "project";
+    if (project && !settings.isProjectTrusted()) throw new Error("Trust this project in Pi before changing project skills.");
+    let scope = scopes.get(project);
+    if (!scope) {
+      scope = { current: structuredClone(project ? settings.getProjectSettings() : settings.getGlobalSettings()), fields: new Set() };
+      scopes.set(project, scope);
+    }
+    scope.fields.add(applyEnabled(scope.current, entry, enabled));
+  }
+  for (const [project, { current, fields }] of scopes) {
+    if (fields.has("skills")) {
+      if (project) settings.setProjectSkillPaths(current.skills ?? []);
+      else settings.setSkillPaths(current.skills ?? []);
+    }
+    if (fields.has("packages")) {
+      if (project) settings.setProjectPackages(current.packages ?? []);
+      else settings.setPackages(current.packages ?? []);
+    }
   }
   await settings.flush();
   const errors = settings.drainErrors();
   if (errors.length) throw new Error(`Could not save skill settings: ${errors.map((error) => String(error.error)).join("; ")}`);
+}
+
+export async function setEnabled(settings: SettingsManager, entry: SkillEntry, enabled: boolean): Promise<void> {
+  await setEnabledMany(settings, [{ entry, enabled }]);
 }
 
 export function entryStatus(entry: SkillEntry): string {

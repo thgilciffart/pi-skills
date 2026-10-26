@@ -10,7 +10,7 @@ npm run check
 npm test
 ```
 
-The tests use temporary directories to verify settings persistence through Pi's resource loader. Catalog tests use fixture responses and do not contact skills.sh.
+The tests use temporary directories to verify settings persistence through Pi's resource loader. Picker tests cover draft changes, filtering, bulk actions, Ctrl+S, and cancellation. Catalog tests use fixture responses and do not contact skills.sh.
 
 To load the working copy in Pi, run the following command from the repository root.
 
@@ -18,7 +18,7 @@ To load the working copy in Pi, run the following command from the repository ro
 pi --extension ./src/index.ts
 ```
 
-Run `/skills help` to verify that Pi loaded the extension. Run `/skills find typescript` to check the live catalog. This search downloads descriptions but does not install skills until you choose an install action.
+Run `/skills` to open the picker. Toggle several skills with Enter, change filters with Tab, and press Esc to verify that the draft is discarded. Reopen the picker and press Ctrl+S after changes to save them and reload Pi's resources. Run `/skills find typescript` to check the live catalog.
 
 ## Inspect the npm package
 
@@ -26,7 +26,7 @@ Run `/skills help` to verify that Pi loaded the extension. Run `/skills find typ
 npm pack --dry-run
 ```
 
-The package includes the TypeScript extension, documentation, and license. Pi loads the TypeScript source directly. No build step is required. The `skills` runtime dependency supplies installation and update support. Pi supplies its own coding-agent package through a peer dependency.
+The package includes the TypeScript extension, documentation, and license. Pi loads the TypeScript source directly. No build step is required. The `skills` runtime dependency supplies installation and update support. Pi supplies its coding-agent and terminal UI packages through peer dependencies.
 
 The development dependency on Pi 1.4.0 uses an npm override for a patched `undici`. The override affects this checkout's dependency tree. Published package consumers use their own Pi installation.
 

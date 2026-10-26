@@ -4,37 +4,47 @@ The plugin registers one Pi command, `/skills`.
 
 | Command | Result |
 | --- | --- |
-| `/skills` | Lists enabled skills and opens a menu in interactive sessions. |
-| `/skills enabled` | Same as `/skills`. |
-| `/skills all` | Lists enabled, disabled, and inactive skills. |
-| `/skills toggle [name or path]` | Toggles the specified skill, or opens a selector when the argument is absent. |
-| `/skills enable <name or path>` | Enables a discovered skill. |
-| `/skills disable <name or path>` | Disables a discovered skill. |
+| `/skills` | Opens the skill picker in Pi's terminal UI. Other modes display all discovered skills. |
 | `/skills find <query>` | Searches skills.sh and opens the results menu. An omitted query opens an input dialog. |
 | `/skills install <owner/repo> <skill> [--global]` | Downloads one GitHub skill through the skills CLI. |
 | `/skills update [name] [--global \| --project]` | Updates skills tracked by the skills CLI in the selected scope. |
 | `/skills update-agent [name]` | Sends an agent request to research and update the specified skill, or all discovered skills. |
 | `/skills help` | Displays command help. |
 
-## Discovery and status
+## Skill picker
 
-Each listed skill includes its name, description, and directory. Discovery uses Pi's package resolver and skill loader. It includes trusted project skills, user skills, configured paths, and installed package skills. Missing packages are skipped during discovery.
+The picker starts with every discovered skill. Each row shows a checkbox, name, scope, and discovery directory. The selected skill's description appears below the list.
 
-The enabled list comes from the current session's loaded skills. It also includes skills supplied through the CLI or another extension. A skill with `disable-model-invocation: true` remains enabled if Pi loads it, even though Pi omits it from the system prompt.
-
-| Status | Meaning |
+| Key | Action |
 | --- | --- |
-| `enabled` | Pi loaded this skill in the current session. |
-| `disabled` | The resource configuration excludes this skill. |
-| `inactive` | The resource configuration enables this skill, but Pi did not load it. Duplicate names and startup options can cause this state. |
+| Up and Down | Move the selection. |
+| Enter | Toggle the selected skill and keep the picker open. |
+| Tab | Cycle through All, Active, Inactive, and Changed. |
+| Shift+Tab | Cycle through filters in reverse. |
+| Text input | Search names, descriptions, and directories. |
+| Ctrl+A | Enable every editable skill in the filtered view. |
+| Ctrl+D | Disable every editable skill in the filtered view. |
+| Ctrl+S | Save all pending changes and close the picker. |
+| Esc | Close the picker and discard pending changes. |
+| Ctrl+C | Clear the search, or cancel if the search is empty. |
 
-Names must match exactly. A full skill directory or `SKILL.md` path also identifies a skill. Toggle paths may contain spaces and do not need quotation marks.
+`[x]` means enabled in the pending configuration. `[ ]` means disabled. Active filters checked skills, Inactive filters unchecked skills, and Changed filters skills with unsaved changes. Search narrows the current filter. Changes remain pending across filters and searches. Toggling a skill back to its original state removes its pending change.
+
+## Discovery and loaded skills
+
+Discovery uses Pi's package resolver and skill loader. It includes trusted project skills, user skills, configured paths, and installed package skills. Missing packages are skipped during discovery.
+
+Skills supplied through the CLI or another extension also appear. Skills with no persistent source entry have a `read-only` label and cannot be toggled. Bulk actions skip these skills.
+
+The checkboxes represent configuration. A checked skill with a `not loaded` label is enabled in settings but absent from the current session's loaded skills. Duplicate names and startup options can cause this state. A skill with `disable-model-invocation: true` remains checked when enabled, even though Pi omits it from the system prompt.
+
+The directory distinguishes skills that share a name. The `update-agent` command also accepts an exact name, a full skill directory, or a `SKILL.md` path.
 
 ## Toggle persistence
 
-Toggles write to the skill's existing user or project scope through Pi's `SettingsManager`. Package skills use the package's `skills` filter. Other skills use exact path overrides in the settings `skills` array. Other resource filters remain intact.
+Toggles change an in-memory draft. Ctrl+S writes all changes to each skill's existing user or project scope through Pi's `SettingsManager`. Package skills use the package's `skills` filter. Other skills use exact path overrides in the settings `skills` array. Other resource filters remain intact.
 
-Successful toggles reload Pi's extensions, skills, prompts, themes, and context files. CLI skills and skills supplied only by another extension have no persistent source entry to change. Their source configuration controls whether they load.
+A successful save with changes reloads Pi's extensions, skills, prompts, themes, and context files once. Closing with Esc or Ctrl+C does not write settings or reload resources. Ctrl+S with no changes closes the picker without writing settings or reloading resources.
 
 ## Catalog search
 

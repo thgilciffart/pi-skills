@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { DefaultResourceLoader, SettingsManager, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { DefaultResourceLoader, loadSkills, SettingsManager, type ExtensionAPI, type ExtensionCommandContext, type Theme } from "@earendil-works/pi-coding-agent";
 import skillsExtension from "../src/index.ts";
 
 function harness(trusted = true) {
@@ -77,4 +77,73 @@ test("Pi loads the published TypeScript entry point and registers the command", 
     assert.ok(extension);
     assert.ok(extension.commands.has("skills"));
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("the command writes only on Ctrl+S and reloads once for several changes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-skills-picker-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  const agentDir = join(root, "agent");
+  const cwd = join(root, "project");
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  try {
+    const paths = [join(cwd, ".pi/skills/alpha/SKILL.md"), join(cwd, ".pi/skills/beta/SKILL.md")];
+    for (let i = 0; i < paths.length; i++) {
+      await mkdir(dirname(paths[i]), { recursive: true });
+      await writeFile(paths[i], `---\nname: picker-fixture-${i}\ndescription: A fixture.\n---\nInstructions.\n`);
+    }
+    await mkdir(join(cwd, ".git"));
+    const settingsPath = join(cwd, ".pi/settings.json");
+    await writeFile(settingsPath, JSON.stringify({ skills: [], unrelated: true }));
+    const original = await readFile(settingsPath, "utf8");
+    const active = loadSkills({ cwd, agentDir, includeDefaults: false, skillPaths: paths }).skills;
+    let keys: string[] = [];
+    let reloads = 0;
+    let handler!: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
+    const notifications: string[] = [];
+    skillsExtension({
+      registerCommand: (_name, options) => { handler = options.handler; },
+      sendMessage: () => {},
+    } as Partial<ExtensionAPI> as ExtensionAPI);
+    const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text } as Theme;
+    const ctx = {
+      cwd, mode: "tui", hasUI: true,
+      isProjectTrusted: () => true,
+      getSystemPromptOptions: () => ({ skills: active }),
+      reload: async () => { reloads++; },
+      ui: {
+        notify: (message: string) => { notifications.push(message); },
+        custom: async (factory: Parameters<ExtensionCommandContext["ui"]["custom"]>[0]) => {
+          let result: unknown;
+          const picker = await factory({ requestRender: () => {}, terminal: { rows: 24 } } as never, theme, {} as never, (value) => { result = value; });
+          // Search isolates the fixtures from any user-level Agent Skills defaults.
+          for (const key of "picker-fixture") picker.handleInput!(key);
+          for (const key of keys) {
+            assert.equal(await readFile(settingsPath, "utf8"), original);
+            picker.handleInput!(key);
+          }
+          return result;
+        },
+      },
+    } as unknown as ExtensionCommandContext;
+    keys = ["\r", "\x1b[B", "\r", "\x1b"];
+    await handler("", ctx);
+    assert.equal(await readFile(settingsPath, "utf8"), original);
+    assert.equal(reloads, 0);
+    keys = ["\x13"];
+    await handler("", ctx);
+    assert.equal(await readFile(settingsPath, "utf8"), original);
+    assert.equal(reloads, 0);
+    keys = ["\r", "\x1b[B", "\r", "\x13"];
+    await handler("", ctx);
+    assert.deepEqual(notifications, []);
+    assert.equal(reloads, 1);
+    const saved = JSON.parse(await readFile(settingsPath, "utf8"));
+    assert.equal(saved.unrelated, true);
+    assert.equal(saved.skills.length, 2);
+    assert.ok(paths.every((path) => saved.skills.includes(`-${path}`)));
+  } finally {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    await rm(root, { recursive: true, force: true });
+  }
 });

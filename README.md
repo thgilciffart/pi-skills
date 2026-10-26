@@ -1,6 +1,6 @@
 # pi-skills
 
-Manage skills from inside the [Pi coding agent](https://pi.dev). List enabled skills, see where Pi discovers them, toggle them, and install skills from [skills.sh](https://skills.sh).
+Manage skills from inside the [Pi coding agent](https://pi.dev). Browse skills and their directories in one picker, save your selections with Ctrl+S, and install skills from [skills.sh](https://skills.sh).
 
 ## Install the plugin
 
@@ -21,16 +21,11 @@ Run `/reload` in an open Pi session after installation.
 
 ## Choose which skills Pi loads
 
-Run `/skills` to see enabled skills and their directories. Choose **View all skills** to include disabled skills, or run `/skills all`.
+Run `/skills` to open the picker. Each skill shows its discovery directory and a checkbox, `[x]` for enabled and `[ ]` for disabled.
 
-Run `/skills toggle` to select a skill. To change a known skill directly, use its name.
+Use the arrow keys to move and Enter to toggle a skill. The picker stays open so you can change several selections. Type to search by name, description, or directory. Press Tab to cycle through **All**, **Active**, **Inactive**, and **Changed**.
 
-```text
-/skills disable frontend-design
-/skills enable frontend-design
-```
-
-If two skills have the same name, use the full path to the skill's `SKILL.md` file. Toggles save in Pi's settings and reload its resources immediately.
+Press Ctrl+A to enable every skill in the current view, or Ctrl+D to disable them. Press Ctrl+S to save all changes and reload Pi's resources once. Press Esc to close the picker and discard unsaved changes.
 
 ## Find and install a skill
 

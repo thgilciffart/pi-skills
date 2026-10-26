@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { DefaultResourceLoader, SettingsManager } from "@earendil-works/pi-coding-agent";
-import { discoverSkills, entryStatus, replaceOverride, setEnabled } from "../src/discovery.ts";
+import { discoverSkills, entryStatus, replaceOverride, setEnabled, setEnabledMany } from "../src/discovery.ts";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "pi-skills-test-"));
@@ -123,5 +123,38 @@ test("explicit Markdown discovery paths survive a disable and enable cycle", asy
     assert.ok(entry);
     await setEnabled(disabled.settings, entry, true);
     assert.equal((await f.load()).some((skill) => skill.filePath === path), true);
+  } finally { await f.cleanup(); }
+});
+
+test("a bulk save preserves changes to several skills across user and project settings", async () => {
+  const f = await fixture();
+  try {
+    const paths = [join(f.agentDir, "skills/user/SKILL.md"), join(f.cwd, ".pi/skills/one/SKILL.md"), join(f.cwd, ".pi/skills/two/SKILL.md")];
+    for (let i = 0; i < paths.length; i++) await f.skill(paths[i], `fixture-batch-${i}`);
+    const snapshot = await discoverSkills(f.cwd, true, await f.load(), f.agentDir);
+    const changes = paths.map((path) => ({ entry: snapshot.entries.find((entry) => entry.skill.filePath === path)!, enabled: false }));
+    let projectWrites = 0;
+    const setter = snapshot.settings.setProjectSkillPaths.bind(snapshot.settings);
+    snapshot.settings.setProjectSkillPaths = (paths) => { projectWrites++; setter(paths); };
+    await setEnabledMany(snapshot.settings, changes);
+    assert.equal(projectWrites, 1);
+    const active = await f.load();
+    assert.equal(active.some((skill) => paths.includes(skill.filePath)), false);
+    const updated = await discoverSkills(f.cwd, true, active, f.agentDir);
+    await setEnabledMany(updated.settings, paths.map((path) => ({ entry: updated.entries.find((entry) => entry.skill.filePath === path)!, enabled: true })));
+    assert.equal((await f.load()).filter((skill) => paths.includes(skill.filePath)).length, paths.length);
+  } finally { await f.cleanup(); }
+});
+
+test("bulk save validates every change before writing settings", async () => {
+  const f = await fixture();
+  try {
+    const path = join(f.cwd, ".pi/skills/one/SKILL.md");
+    await f.skill(path, "fixture-batch-validation");
+    const snapshot = await discoverSkills(f.cwd, true, await f.load(), f.agentDir);
+    const entry = snapshot.entries.find((entry) => entry.skill.filePath === path)!;
+    await assert.rejects(setEnabledMany(snapshot.settings, [{ entry, enabled: false }, { entry: { ...entry, resource: undefined }, enabled: false }]), /CLI or another extension/);
+    assert.equal((await f.load()).some((skill) => skill.filePath === path), true);
+    assert.deepEqual(snapshot.settings.getProjectSettings().skills, undefined);
   } finally { await f.cleanup(); }
 });

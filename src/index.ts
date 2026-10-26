@@ -2,15 +2,12 @@ import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { plain, searchSkills, skillUrl } from "./catalog.ts";
 import { browserCommand, installArgs, nodeCommand, skillsCliPath, updateArgs } from "./cli.ts";
-import { discoverSkills, entryDirectory, entryStatus, setEnabled, type SkillEntry } from "./discovery.ts";
+import { discoverSkills, entryDirectory, entryStatus, isEnabled, setEnabledMany, type SkillChange, type SkillEntry } from "./discovery.ts";
+import { SkillSelector } from "./selector.ts";
 
 const help = `Skill commands
 
-/skills                         Show enabled skills
-/skills all                     Show all discovered skills
-/skills toggle [name or path]   Toggle a skill
-/skills enable <name or path>   Enable a skill
-/skills disable <name or path>  Disable a skill
+/skills                         Open the skill picker
 /skills find <query>            Search skills.sh
 /skills install <owner/repo> <skill> [--global]
 /skills update [name] [--global | --project]
@@ -18,8 +15,8 @@ const help = `Skill commands
 /skills help                    Show this reference
 
 Install and update use project scope by default. Use --global for your user skills.
-Inactive skills are configured on but absent from Pi's loaded skill list.
-CLI and extension-provided skills appear in the list but cannot be toggled here.`;
+In the picker, Enter toggles, Tab filters, and Ctrl+S saves. Esc discards changes.
+CLI and extension-provided skills appear as read-only.`;
 
 export default function skillsExtension(pi: ExtensionAPI): void {
   function report(content: string): void {
@@ -38,7 +35,7 @@ export default function skillsExtension(pi: ExtensionAPI): void {
     if (target) {
       const matches = entries.filter(({ skill }) => skill.name === target || resolve(skill.filePath) === resolve(ctx.cwd, target) || resolve(skill.baseDir) === resolve(ctx.cwd, target));
       if (matches.length === 1) return matches[0];
-      if (!matches.length) throw new Error(`No discovered skill matches ${plain(target)}. Run /skills all to see names and paths.`);
+      if (!matches.length) throw new Error(`No discovered skill matches ${plain(target)}. Run /skills to see names and paths.`);
       entries = matches;
       if (!ctx.hasUI) throw new Error("Multiple skills have this name. Use the full SKILL.md path.");
     }
@@ -49,30 +46,18 @@ export default function skillsExtension(pi: ExtensionAPI): void {
     return selected === undefined ? undefined : entries[options.indexOf(selected)];
   }
 
-  async function list(all: boolean, ctx: ExtensionCommandContext): Promise<void> {
-    const { entries } = await snapshot(ctx);
-    const visible = all ? entries : entries.filter((entry) => entry.active);
-    report([
-      all ? "All discovered skills" : "Enabled skills",
-      ...visible.map((entry) => `\n[${entryStatus(entry)}] ${plain(entry.skill.name)}\n${plain(entryDirectory(entry))}\n${plain(entry.skill.description)}`),
-      visible.length ? "" : "No skills found.",
-      all ? "Use /skills toggle <name> to change a skill. Inactive skills may be shadowed by another skill with the same name." : "Use /skills all to include disabled and inactive skills.",
-    ].join("\n"));
-    if (!ctx.hasUI) return;
-    const action = await ctx.ui.select(all ? "All skills" : "Enabled skills", [
-      ...(all ? [] : ["View all skills"]), "Toggle a skill", "Close",
-    ]);
-    if (action === "View all skills") await list(true, ctx);
-    else if (action === "Toggle a skill") await toggle("", "toggle", ctx);
-  }
-
-  async function toggle(target: string, action: string, ctx: ExtensionCommandContext): Promise<void> {
+  async function manage(ctx: ExtensionCommandContext): Promise<void> {
     const { settings, entries } = await snapshot(ctx);
-    const entry = await pick(entries, target, ctx);
-    if (!entry) return;
-    const enabled = action === "enable" || (action === "toggle" && !(entry.resource?.enabled ?? entry.active));
-    await setEnabled(settings, entry, enabled);
-    report(`${enabled ? "Enabled" : "Disabled"} ${plain(entry.skill.name)} in ${plain(entryDirectory(entry))}. Reloading Pi resources.`);
+    if (ctx.mode !== "tui") {
+      report(["All discovered skills", ...entries.map((entry) => `[${isEnabled(entry) ? "x" : " "}] ${plain(entry.skill.name)}\n${plain(entryDirectory(entry))}`), "Open /skills in Pi's terminal UI to change selections and save with Ctrl+S."].join("\n\n"));
+      return;
+    }
+    const changes = await ctx.ui.custom<SkillChange[] | undefined>((tui, theme, _kb, done) =>
+      new SkillSelector(entries, theme, done, () => tui.requestRender(), () => tui.terminal.rows),
+    );
+    if (!changes?.length) return;
+    await setEnabledMany(settings, changes);
+    report(`Saved ${changes.length} skill change${changes.length === 1 ? "" : "s"}. Reloading Pi resources.`);
     await ctx.reload();
   }
 
@@ -142,24 +127,19 @@ export default function skillsExtension(pi: ExtensionAPI): void {
   }
 
   pi.registerCommand("skills", {
-    description: "List, toggle, find, install, and update skills",
+    description: "Manage skills, find downloads, and update installed skills",
     getArgumentCompletions: (prefix) => {
-      const commands = ["enabled", "all", "toggle", "enable", "disable", "find", "install", "update", "update-agent", "help"];
+      const commands = ["find", "install", "update", "update-agent", "help"];
       const matches = commands.filter((command) => command.startsWith(prefix));
       return matches.length ? matches.map((value) => ({ value, label: value })) : null;
     },
     handler: async (args, ctx) => {
       try {
         const match = args.trim().match(/^(\S+)(?:\s+([\s\S]*))?$/);
-        const command = match?.[1] ?? "enabled";
+        const command = match?.[1] ?? "";
         const rest = match?.[2]?.trim() ?? "";
-        if (command === "enabled" || command === "all") {
-          if (rest) throw new Error(`Usage: /skills ${command}`);
-          await list(command === "all", ctx);
-        } else if (["toggle", "enable", "disable"].includes(command)) {
-          if (command !== "toggle" && !rest) throw new Error(`Usage: /skills ${command} <name or path>`);
-          await toggle(rest, command, ctx);
-        } else if (command === "find") await find(rest, ctx);
+        if (!command) await manage(ctx);
+        else if (command === "find") await find(rest, ctx);
         else if (command === "update-agent") await updateAgent(rest, ctx);
         else if (command === "install" || command === "update") {
           const tokens = rest.split(/\s+/).filter(Boolean);
