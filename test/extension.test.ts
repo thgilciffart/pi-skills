@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { setImmediate } from "node:timers/promises";
 import { DefaultResourceLoader, loadSkills, SettingsManager, type ExtensionAPI, type ExtensionCommandContext, type Theme } from "@earendil-works/pi-coding-agent";
 import skillsExtension from "../src/index.ts";
 
@@ -145,5 +146,54 @@ test("the command writes only on Ctrl+S and reloads once for several changes", a
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the full-screen catalog routes shortcuts to browser and both install scopes, then reloads once", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json({ skills: [{ source: "owner/repo", skillId: "test-skill", name: "Test skill", installs: 12, description: "A test skill.", updatedAt: "2026-10-20T00:00:00Z" }] }));
+  for (const trusted of [true, false]) {
+    let handler!: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
+    const executions: Array<{ command: string; args: string[] }> = [];
+    const reports: string[] = [];
+    const errors: string[] = [];
+    let reloads = 0;
+    skillsExtension({
+      registerCommand: (_name, options) => { handler = options.handler; },
+      sendMessage: (message) => { reports.push(String(message.content)); },
+      exec: async (command, args) => { executions.push({ command, args }); return { code: 0, killed: false, stdout: "Done", stderr: "" }; },
+    } as Partial<ExtensionAPI> as ExtensionAPI);
+    const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text } as Theme;
+    const ctx = {
+      cwd: tmpdir(), mode: "tui", hasUI: true,
+      isProjectTrusted: () => trusted,
+      reload: async () => { reloads++; },
+      ui: {
+        notify: (message: string) => { errors.push(message); },
+        custom: async (factory: Parameters<ExtensionCommandContext["ui"]["custom"]>[0], options: { overlay: boolean; overlayOptions: { width: string; maxHeight: string } }) => {
+          assert.equal(options.overlay, true);
+          assert.equal(options.overlayOptions.width, "100%");
+          assert.equal(options.overlayOptions.maxHeight, "100%");
+          let closed = false;
+          const picker = await factory({ requestRender: () => {}, terminal: { rows: 30 } } as never, theme, {} as never, () => { closed = true; });
+          await setImmediate();
+          assert.equal(picker.render(120).length, 30);
+          for (const key of ["b", "p", "g", "g"]) { picker.handleInput!(key); await setImmediate(); }
+          assert.equal(closed, false);
+          assert.equal(reloads, 0);
+          assert.deepEqual(reports, []);
+          picker.handleInput!("\x1b");
+          assert.equal(closed, true);
+        },
+      },
+    } as unknown as ExtensionCommandContext;
+    await handler("find testing", ctx);
+    assert.deepEqual(errors, []);
+    assert.equal(reloads, 1);
+    assert.ok(executions[0].args.includes("https://skills.sh/owner/repo/test-skill"));
+    const installs = executions.filter(({ command }) => command === process.execPath);
+    assert.equal(installs.length, trusted ? 2 : 1);
+    assert.ok(installs.at(-1)!.args.includes("--global"));
+    if (trusted) assert.equal(installs[0].args.includes("--global"), false);
+    assert.match(reports[0], trusted ? /Installed 2 skills/ : /Installed 1 skill/);
   }
 });

@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { plain, searchSkills, skillUrl } from "./catalog.ts";
+import { plain, SkillsCatalog, skillUrl } from "./catalog.ts";
+import { CatalogPicker } from "./catalog-picker.ts";
 import { browserCommand, installArgs, nodeCommand, skillsCliPath, updateArgs } from "./cli.ts";
 import { discoverSkills, entryDirectory, entryStatus, isEnabled, setEnabledMany, type SkillChange, type SkillEntry } from "./discovery.ts";
 import { SkillSelector } from "./selector.ts";
@@ -8,7 +9,7 @@ import { SkillSelector } from "./selector.ts";
 const help = `Skill commands
 
 /skills                         Open the skill picker
-/skills find <query>            Search skills.sh
+/skills find [query]            Search skills.sh
 /skills install <owner/repo> <skill> [--global]
 /skills update [name] [--global | --project]
 /skills update-agent [name]     Ask the agent to research updates
@@ -16,6 +17,7 @@ const help = `Skill commands
 
 Install and update use project scope by default. Use --global for your user skills.
 In the picker, Enter toggles, Tab filters, and Ctrl+S saves. Esc discards changes.
+In the catalog, Ctrl+F searches again, b opens the browser, p installs in the project, and g installs globally.
 CLI and extension-provided skills appear as read-only.`;
 
 export default function skillsExtension(pi: ExtensionAPI): void {
@@ -61,48 +63,53 @@ export default function skillsExtension(pi: ExtensionAPI): void {
     await ctx.reload();
   }
 
-  async function runCli(args: string[], ctx: ExtensionCommandContext): Promise<void> {
-    ctx.ui.notify("Running the skills CLI...", "info");
+  async function executeCli(args: string[], ctx: ExtensionCommandContext): Promise<string> {
     const result = await pi.exec(nodeCommand(), [skillsCliPath(), ...args], { cwd: ctx.cwd, timeout: 180_000 });
     const output = (result.stdout + "\n" + result.stderr).split(/\r?\n/).map(plain).join("\n").trim();
     if (result.killed || result.code !== 0) {
-      throw new Error(`The skills CLI ${result.killed ? "timed out" : `exited with code ${result.code}`}. ${output.slice(-6000)}. Use /skills update-agent for skills without automatic updates.`);
+      throw new Error(`The skills CLI ${result.killed ? "timed out" : `exited with code ${result.code}`}. ${output.slice(-6000)}`);
     }
-    report(output || "The skills CLI completed.");
+    return output || "The skills CLI completed.";
+  }
+
+  async function runCli(args: string[], ctx: ExtensionCommandContext): Promise<void> {
+    ctx.ui.notify("Running the skills CLI...", "info");
+    report(await executeCli(args, ctx));
     await ctx.reload();
   }
 
   async function find(query: string, ctx: ExtensionCommandContext): Promise<void> {
-    if (!query && ctx.hasUI) query = (await ctx.ui.input("Search skills.sh", "Search terms")) ?? "";
-    if (!query) {
-      if (!ctx.hasUI) throw new Error("Usage: /skills find <query>");
+    const catalog = new SkillsCatalog();
+    if (ctx.mode !== "tui") {
+      if (!query) throw new Error("Usage: /skills find <query>");
+      const skills = await catalog.search(query);
+      report(skills.length ? skills.map((skill) => `${skill.name} | ${skill.source} | ${skill.installs.toLocaleString()} installs\n${skillUrl(skill)}`).join("\n\n") : `No skills found for ${plain(query)}.`);
       return;
     }
-    ctx.ui.notify("Searching skills.sh...", "info");
-    const skills = await searchSkills(query);
-    if (!skills.length) { report(`No skills found for ${plain(query)}.`); return; }
-    report(skills.map((skill) => `${skill.name} | ${skill.source} | ${skill.installs.toLocaleString()} installs\n${skill.description ?? "No description provided."}\n${skillUrl(skill)}`).join("\n\n"));
-    if (!ctx.hasUI) return;
-    const options = skills.map((skill, index) => `${index + 1}. ${skill.name} | ${skill.source} | ${(skill.description ?? "No description provided.").slice(0, 140)}`);
-    while (true) {
-      const selected = await ctx.ui.select("Skills from skills.sh", options);
-      if (selected === undefined) return;
-      const skill = skills[options.indexOf(selected)];
-      if (!skill) return;
-      const action = await ctx.ui.select(`${skill.name} | ${skill.source}`, ["Install in this project", "Install globally", "View in browser", "Back to results"]);
-      if (action === undefined) return;
-      if (action === "View in browser") {
-        const { command, args } = browserCommand(skillUrl(skill));
-        try {
+    let needsReload = false;
+    let installs = 0;
+    await ctx.ui.custom<void>((tui, theme, _kb, done) => {
+      const picker = new CatalogPicker(theme, {
+        search: (query, signal) => catalog.search(query, signal),
+        details: (skill, signal) => catalog.details(skill, signal),
+        open: async (skill) => {
+          const { command, args } = browserCommand(skillUrl(skill));
           const result = await pi.exec(command, args, { timeout: 10_000 });
-          if (result.code !== 0 || result.killed) throw new Error("Browser launch failed.");
-        } catch { ctx.ui.notify(`Open ${skillUrl(skill)} in your browser.`, "info"); }
-      } else if (action === "Install in this project" || action === "Install globally") {
-        const global = action === "Install globally";
-        requireProjectTrust(ctx, global);
-        await runCli(installArgs(skill.source, skill.slug, global), ctx);
-        return;
-      }
+          if (result.code !== 0 || result.killed) throw new Error(`Could not launch the browser. Open ${skillUrl(skill)}`);
+        },
+        install: async (skill, global) => {
+          requireProjectTrust(ctx, global);
+          needsReload = true;
+          await executeCli(installArgs(skill.source, skill.slug, global), ctx);
+          installs++;
+        },
+      }, () => done(), () => tui.requestRender(), () => tui.terminal.rows);
+      if (query) void picker.search(query);
+      return picker;
+    }, { overlay: true, overlayOptions: { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0 } });
+    if (needsReload) {
+      report(installs ? `Installed ${installs} skill${installs === 1 ? "" : "s"}. Reloading Pi resources.` : "Reloading Pi resources after the installation attempt.");
+      await ctx.reload();
     }
   }
 

@@ -35,7 +35,9 @@ Search the skills.sh catalog.
 /skills find react performance
 ```
 
-Each result shows its repository, installation count, description when available, and page URL. Select a result, then choose **View in browser**, **Install in this project**, or **Install globally**.
+Search opens a full-screen picker. Each result shows its repository, installation count, and last update date when available. Move with the arrow keys, or hover over a result, to read its description below the list.
+
+Press **b** to open the highlighted skill in your browser, **p** to install it in the project, or **g** to install it globally. Press Ctrl+F or **/** to enter another search. Installations keep the picker open. Press Esc when finished to close it and reload Pi's resources after any installation attempts.
 
 To install a known skill without the search menu, specify its repository and skill name.
 

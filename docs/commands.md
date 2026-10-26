@@ -5,7 +5,7 @@ The plugin registers one Pi command, `/skills`.
 | Command | Result |
 | --- | --- |
 | `/skills` | Opens the skill picker in Pi's terminal UI. Other modes display all discovered skills. |
-| `/skills find <query>` | Searches skills.sh and opens the results menu. An omitted query opens an input dialog. |
+| `/skills find [query]` | Opens the full-screen catalog picker. An omitted query focuses its search field. |
 | `/skills install <owner/repo> <skill> [--global]` | Downloads one GitHub skill through the skills CLI. |
 | `/skills update [name] [--global \| --project]` | Updates skills tracked by the skills CLI in the selected scope. |
 | `/skills update-agent [name]` | Sends an agent request to research and update the specified skill, or all discovered skills. |
@@ -48,9 +48,30 @@ A successful save with changes reloads Pi's extensions, skills, prompts, themes,
 
 ## Catalog search
 
-Search returns up to ten GitHub skills. It uses the public `/api/search` endpoint used by the skills CLI. Descriptions come from the search response when provided, or from the skill page's structured data or description metadata. A failed description request does not remove the result.
+Search opens a full-screen overlay over the current Pi session. It returns up to ten GitHub skills through the public `/api/search` endpoint used by the skills CLI. Results appear before their detail requests finish.
 
-Search requests time out after 15 seconds. Description requests time out after 5 seconds, with at most three in flight. The browser action opens the selected skills.sh page through the operating system's default browser. If browser launch fails, the plugin displays the URL.
+| Key | Action |
+| --- | --- |
+| Up and Down | Highlight a result. |
+| Mouse hover or click | Highlight a result when terminal mouse events are available. |
+| Mouse wheel | Move through the results. |
+| Ctrl+F or `/` | Clear and focus the search field for a new query. |
+| Enter in the search field | Submit the query. |
+| Tab in the search field | Return to the existing results. |
+| `b` in the results | Open the highlighted skill on skills.sh in the default browser. |
+| `p` in the results | Install the highlighted skill in the current project. |
+| `g` in the results | Install the highlighted skill globally. |
+| Esc or Ctrl+C | Close the picker. |
+
+The list shows skill names, repositories, installation counts, and update dates. The highlighted skill's description appears in the preview below the list. Narrow terminals show a compact list and retain the metadata in the preview. Descriptions come from the search response when provided, or from the skill page's structured data or description metadata.
+
+Update dates come from skills.sh when its search response provides them. Otherwise, the plugin matches the skill's directory through GitHub's repository tree and reads the latest commit affecting that directory, including supporting files. Dates use UTC. Ambiguous matches, incomplete repository trees, unavailable metadata, and GitHub rate limits produce an unknown date. The plugin does not substitute the repository's overall update date.
+
+Details load in the background for at most three skills at a time. The highlighted result moves to the front of the remaining queue. Search requests time out after 15 seconds. Individual description and GitHub requests time out after 5 seconds. Repository trees are cached for the picker. A failed detail request does not remove a result. A new search cancels old requests, and closing the picker cancels remaining metadata requests.
+
+Installations run immediately and keep the picker open. Repeated install shortcuts do not start parallel operations. A successful installation has an installed marker, and repeating the same scope is skipped during that picker session. Pi reloads its resources once when the picker closes after an installation attempt. Closing is disabled while an installation or browser launch runs.
+
+If browser launch fails, the status line includes the skill's URL.
 
 In sessions without dialog support, search displays results and URLs. Installation remains available through `/skills install`.
 
@@ -80,3 +101,5 @@ The agent request includes disabled skills when no name is specified. A named sk
 - [Pi skill discovery](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md)
 - [skills.sh search client](https://github.com/vercel-labs/skills/blob/main/src/find.ts)
 - [skills CLI](https://github.com/vercel-labs/skills)
+- [GitHub commits API](https://docs.github.com/en/rest/commits/commits#list-commits)
+- [GitHub repository trees API](https://docs.github.com/en/rest/git/trees#get-a-tree)
