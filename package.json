@@ -1,0 +1,35 @@
+{
+  "name": "pi-skills",
+  "version": "0.1.0",
+  "description": "Browse, toggle, find, install, and update skills in the Pi coding agent.",
+  "type": "module",
+  "license": "MIT",
+  "author": "thgilciffart",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thgilciffart/pi-skills.git"
+  },
+  "homepage": "https://github.com/thgilciffart/pi-skills#readme",
+  "bugs": "https://github.com/thgilciffart/pi-skills/issues",
+  "keywords": ["pi-package", "pi", "skills", "skills.sh", "agent-skills"],
+  "files": ["src", "docs", "README.md", "LICENSE"],
+  "pi": { "extensions": ["./src/index.ts"] },
+  "engines": { "node": ">=22.20.0" },
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run check && npm test"
+  },
+  "peerDependencies": { "@earendil-works/pi-coding-agent": "*" },
+  "dependencies": { "skills": "1.7.4" },
+  "overrides": {
+    "@earendil-works/pi-coding-agent": { "undici": "^8.12.2" }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@types/node": "^22.19.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
