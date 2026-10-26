@@ -2,22 +2,25 @@ import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { plain, SkillsCatalog, skillUrl } from "./catalog.ts";
 import { CatalogPicker } from "./catalog-picker.ts";
-import { browserCommand, installArgs, nodeCommand, skillsCliPath, updateArgs } from "./cli.ts";
+import { browserCommand, installArgs, nodeCommand, skillsCliPath, uninstallArgs, updateArgs } from "./cli.ts";
 import { discoverSkills, entryDirectory, entryStatus, isEnabled, setEnabledMany, type SkillChange, type SkillEntry } from "./discovery.ts";
 import { SkillSelector } from "./selector.ts";
+import { requireInstallation, verifyUninstalled, type Installation } from "./installations.ts";
 
 const help = `Skill commands
 
 /skills                         Open the skill picker
 /skills find [query]            Search skills.sh
 /skills install <owner/repo> <skill> [--global]
+/skills uninstall <skill> [--global]
 /skills update [name] [--global | --project]
 /skills update-agent [name]     Ask the agent to research updates
 /skills help                    Show this reference
 
 Install and update use project scope by default. Use --global for your user skills.
-In the picker, Enter toggles, Tab filters, and Ctrl+S saves. Esc discards changes.
+In the picker, Enter toggles, Ctrl+X marks an uninstall, and Ctrl+S saves. Esc discards changes.
 In the catalog, Ctrl+F searches again, b opens the browser, p installs in the project, and g installs globally.
+In the catalog, u uninstalls from the project and Shift+U uninstalls globally.
 CLI and extension-provided skills appear as read-only.`;
 
 export default function skillsExtension(pi: ExtensionAPI): void {
@@ -58,7 +61,20 @@ export default function skillsExtension(pi: ExtensionAPI): void {
       new SkillSelector(entries, theme, done, () => tui.requestRender(), () => tui.terminal.rows),
     );
     if (!changes?.length) return;
-    await setEnabledMany(settings, changes);
+    const removals: Installation[] = [];
+    for (const change of changes.filter((change) => change.uninstall)) {
+      const installation = change.entry.installation;
+      if (!installation) throw new Error("This skill has no tracked installation to remove.");
+      requireProjectTrust(ctx, installation.global);
+      const current = await requireInstallation(installation.name, installation.global, ctx.cwd, installation.source);
+      if (resolve(current.filePath) !== resolve(change.entry.skill.filePath)) throw new Error("The skill's installation path changed. Reopen /skills and try again.");
+      removals.push(current);
+    }
+    await setEnabledMany(settings, changes.filter((change) => !change.uninstall));
+    for (const installation of removals) {
+      await executeCli(uninstallArgs(installation.name, installation.global), ctx);
+      await verifyUninstalled(installation);
+    }
     report(`Saved ${changes.length} skill change${changes.length === 1 ? "" : "s"}. Reloading Pi resources.`);
     await ctx.reload();
   }
@@ -78,6 +94,14 @@ export default function skillsExtension(pi: ExtensionAPI): void {
     await ctx.reload();
   }
 
+  async function uninstall(name: string, global: boolean, ctx: ExtensionCommandContext, source?: string): Promise<string> {
+    requireProjectTrust(ctx, global);
+    const installation = await requireInstallation(name, global, ctx.cwd, source);
+    const output = await executeCli(uninstallArgs(installation.name, global), ctx);
+    await verifyUninstalled(installation);
+    return output;
+  }
+
   async function find(query: string, ctx: ExtensionCommandContext): Promise<void> {
     const catalog = new SkillsCatalog();
     if (ctx.mode !== "tui") {
@@ -88,6 +112,7 @@ export default function skillsExtension(pi: ExtensionAPI): void {
     }
     let needsReload = false;
     let installs = 0;
+    let uninstalls = 0;
     await ctx.ui.custom<void>((tui, theme, _kb, done) => {
       const picker = new CatalogPicker(theme, {
         search: (query, signal) => catalog.search(query, signal),
@@ -103,12 +128,24 @@ export default function skillsExtension(pi: ExtensionAPI): void {
           await executeCli(installArgs(skill.source, skill.slug, global), ctx);
           installs++;
         },
+        uninstall: async (skill, global) => {
+          requireProjectTrust(ctx, global);
+          // Check identity before marking the session for a resource reload.
+          await requireInstallation(skill.slug, global, ctx.cwd, skill.source);
+          needsReload = true;
+          await uninstall(skill.slug, global, ctx, skill.source);
+          uninstalls++;
+        },
       }, () => done(), () => tui.requestRender(), () => tui.terminal.rows);
       if (query) void picker.search(query);
       return picker;
     }, { overlay: true, overlayOptions: { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0 } });
     if (needsReload) {
-      report(installs ? `Installed ${installs} skill${installs === 1 ? "" : "s"}. Reloading Pi resources.` : "Reloading Pi resources after the installation attempt.");
+      report([
+        ...(installs ? [`Installed ${installs} skill${installs === 1 ? "" : "s"}.`] : []),
+        ...(uninstalls ? [`Uninstalled ${uninstalls} skill${uninstalls === 1 ? "" : "s"}.`] : []),
+        "Reloading Pi resources.",
+      ].join(" "));
       await ctx.reload();
     }
   }
@@ -136,7 +173,7 @@ export default function skillsExtension(pi: ExtensionAPI): void {
   pi.registerCommand("skills", {
     description: "Manage skills, find downloads, and update installed skills",
     getArgumentCompletions: (prefix) => {
-      const commands = ["find", "install", "update", "update-agent", "help"];
+      const commands = ["find", "install", "uninstall", "update", "update-agent", "help"];
       const matches = commands.filter((command) => command.startsWith(prefix));
       return matches.length ? matches.map((value) => ({ value, label: value })) : null;
     },
@@ -148,7 +185,7 @@ export default function skillsExtension(pi: ExtensionAPI): void {
         if (!command) await manage(ctx);
         else if (command === "find") await find(rest, ctx);
         else if (command === "update-agent") await updateAgent(rest, ctx);
-        else if (command === "install" || command === "update") {
+        else if (command === "install" || command === "uninstall" || command === "update") {
           const tokens = rest.split(/\s+/).filter(Boolean);
           const global = tokens.includes("--global");
           if (global && tokens.includes("--project")) throw new Error("Choose either --global or --project.");
@@ -157,8 +194,12 @@ export default function skillsExtension(pi: ExtensionAPI): void {
           const values = tokens.filter((token) => !token.startsWith("--"));
           if (command === "install" && values.length !== 2) throw new Error("Usage: /skills install <owner/repo> <skill> [--global]");
           if (command === "update" && values.length > 1) throw new Error("Usage: /skills update [name] [--global | --project]");
+          if (command === "uninstall" && values.length !== 1) throw new Error("Usage: /skills uninstall <skill> [--global | --project]");
           requireProjectTrust(ctx, global);
-          await runCli(command === "install" ? installArgs(values[0], values[1], global) : updateArgs(values[0], global), ctx);
+          if (command === "uninstall") {
+            report(await uninstall(values[0], global, ctx));
+            await ctx.reload();
+          } else await runCli(command === "install" ? installArgs(values[0], values[1], global) : updateArgs(values[0], global), ctx);
         } else if (command === "help") report(help);
         else throw new Error(`Unknown subcommand: ${plain(command)}. Run /skills help.`);
       } catch (error) {

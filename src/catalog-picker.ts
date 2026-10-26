@@ -10,6 +10,7 @@ export interface CatalogActions {
   details(skill: CatalogSkill, signal: AbortSignal): Promise<Partial<CatalogSkill>>;
   open(skill: CatalogSkill): Promise<void>;
   install(skill: CatalogSkill, global: boolean): Promise<void>;
+  uninstall(skill: CatalogSkill, global: boolean): Promise<void>;
 }
 
 export class CatalogPicker implements Component, Focusable {
@@ -110,19 +111,22 @@ export class CatalogPicker implements Component, Focusable {
     this.requestRender();
   }
 
-  private async action(kind: "browser" | "project" | "global"): Promise<void> {
+  private async action(kind: "browser" | "project" | "global" | "uninstall-project" | "uninstall-global"): Promise<void> {
     const skill = this.skills[this.selected];
     if (!skill || this.busy || this.searching) return;
     const key = `${skill.id}:${kind}`;
+    const uninstall = kind.startsWith("uninstall-");
+    const global = kind === "global" || kind === "uninstall-global";
     if (this.installed.has(key)) { this.status = `Already installed ${kind === "global" ? "globally" : "in this project"} during this search.`; this.requestRender(); return; }
     this.busy = true;
     this.error = false;
-    this.status = kind === "browser" ? "Opening the skill in your browser..." : `Installing ${skill.name} ${kind === "global" ? "globally" : "in this project"}...`;
+    this.status = kind === "browser" ? "Opening the skill in your browser..." : `${uninstall ? "Uninstalling" : "Installing"} ${skill.name} ${global ? "globally" : "in this project"}...`;
     this.requestRender();
     try {
       if (kind === "browser") await this.actions.open(skill);
-      else { await this.actions.install(skill, kind === "global"); this.installed.add(key); }
-      this.status = kind === "browser" ? "Opened in your browser." : `Installed ${skill.name}. Keep browsing, or press Esc to close and reload Pi.`;
+      else if (uninstall) { await this.actions.uninstall(skill, global); this.installed.delete(`${skill.id}:${global ? "global" : "project"}`); }
+      else { await this.actions.install(skill, global); this.installed.add(key); }
+      this.status = kind === "browser" ? "Opened in your browser." : `${uninstall ? "Uninstalled" : "Installed"} ${skill.name}. Keep browsing, or press Esc to close and reload Pi.`;
     } catch (error) {
       this.status = error instanceof Error ? plain(error.message) : "The action failed. Try again.";
       this.error = true;
@@ -148,6 +152,8 @@ export class CatalogPicker implements Component, Focusable {
     else if (matchesKey(data, "b")) void this.action("browser");
     else if (matchesKey(data, "p")) void this.action("project");
     else if (matchesKey(data, "g")) void this.action("global");
+    else if (matchesKey(data, Key.shift("u"))) void this.action("uninstall-global");
+    else if (matchesKey(data, "u")) void this.action("uninstall-project");
   }
 
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
@@ -176,7 +182,7 @@ export class CatalogPicker implements Component, Focusable {
     const columns = width >= 85;
     const footer = [
       ...wrapTextWithAnsi("↑/↓ move · Ctrl+F or / search again · b browser", width),
-      ...wrapTextWithAnsi(this.busy ? "Wait for the current action to finish." : "p install in project · g install globally · Esc close", width),
+      ...wrapTextWithAnsi(this.busy ? "Wait for the current action to finish." : "p install project · g install global · u uninstall project · U uninstall global · Esc close", width),
     ];
     const previewLines = Math.max(1, Math.min(3, height - 12 - footer.length));
     const nameWidth = Math.floor(width * 0.35);

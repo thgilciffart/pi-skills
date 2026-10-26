@@ -27,6 +27,8 @@ Use the arrow keys to move and Enter to toggle a skill. The picker stays open so
 
 Press Ctrl+A to enable every skill in the current view, or Ctrl+D to disable them. Press Ctrl+S to save all changes and reload Pi's resources once. Press Esc to close the picker and discard unsaved changes.
 
+To uninstall a downloaded skill, highlight it and press Ctrl+X. Press Ctrl+S to apply the uninstall, or press Ctrl+X again to undo the mark. Only downloads tracked by the skills CLI can be uninstalled this way.
+
 ## Find and install a skill
 
 Search the skills.sh catalog.
@@ -37,7 +39,7 @@ Search the skills.sh catalog.
 
 Search opens a full-screen picker. Each result shows its repository, installation count, and last update date when available. Move with the arrow keys, or hover over a result, to read its description below the list.
 
-Press **b** to open the highlighted skill in your browser, **p** to install it in the project, or **g** to install it globally. Press Ctrl+F or **/** to enter another search. Installations keep the picker open. Press Esc when finished to close it and reload Pi's resources after any installation attempts.
+Press **b** to open the highlighted skill in your browser, **p** to install it in the project, or **g** to install it globally. Press **u** to uninstall it from the project, or Shift+U to uninstall it globally. Press Ctrl+F or **/** to enter another search. Install and uninstall actions keep the picker open. Press Esc when finished to close it and reload Pi's resources after these actions.
 
 To install a known skill without the search menu, specify its repository and skill name.
 
@@ -46,6 +48,17 @@ To install a known skill without the search menu, specify its repository and ski
 ```
 
 Add `--global` to install for your user account. Project installs require project trust in Pi.
+
+## Uninstall a downloaded skill
+
+Use the picker shortcuts above, or run the uninstall command.
+
+```text
+/skills uninstall vercel-react-best-practices
+/skills uninstall vercel-react-best-practices --global
+```
+
+The command defaults to the current project. Uninstall removes the downloaded files, the lock entry, and the skill's links for other agents in that scope. See the [uninstall reference](docs/commands.md#uninstall-scope) for shared skill locations and scope limits.
 
 ## Update downloaded skills
 

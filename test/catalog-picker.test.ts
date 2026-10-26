@@ -20,6 +20,7 @@ function harness(overrides: Partial<CatalogActions> = {}) {
     details: async (skill) => ({ description: `Only the ${skill.name} description.`, updatedAt: "2026-10-20T00:00:00Z", updatedAtSource: "GitHub" }),
     open: async (skill) => { opened.push(skill.id); },
     install: async (skill, global) => { installs.push({ id: skill.id, global }); },
+    uninstall: async () => {},
     ...overrides,
   }, () => { closed++; }, () => {}, () => height);
   return { picker, searches, opened, installs, closed: () => closed, resize: (rows: number) => { height = rows; }, text: (width = 120) => picker.render(width).join("\n") };
@@ -123,5 +124,18 @@ test("installation errors stay visible and duplicate keystrokes do not start par
   finish();
   await setImmediate();
   assert.match(h.text(), /Trust this project first/);
+  assert.equal(h.closed(), 0);
+});
+
+test("project and global uninstall shortcuts preserve scope and allow reinstalling", async () => {
+  const removals: boolean[] = [];
+  const h = harness({ uninstall: async (_skill, global) => { removals.push(global); } });
+  await h.picker.search("testing");
+  for (const key of ["p", "g", "u", "U", "p", "g"]) {
+    h.picker.handleInput(key);
+    await setImmediate();
+  }
+  assert.deepEqual(removals, [false, true]);
+  assert.equal(h.installs.length, 4);
   assert.equal(h.closed(), 0);
 });

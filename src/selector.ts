@@ -9,6 +9,7 @@ type Filter = typeof filters[number];
 export class SkillSelector implements Component, Focusable {
   private readonly search = new Input({ prompt: "Search: ", placeholder: "Filter by name, description, or directory" });
   private readonly pending = new Map<SkillEntry, boolean>();
+  private readonly removals = new Set<SkillEntry>();
   private filter: Filter = "All";
   private selected = 0;
   private notice = "";
@@ -25,6 +26,7 @@ export class SkillSelector implements Component, Focusable {
   set focused(value: boolean) { this.search.focused = value; }
 
   private enabled(entry: SkillEntry): boolean {
+    if (this.removals.has(entry)) return false;
     return this.pending.get(entry) ?? isEnabled(entry);
   }
 
@@ -33,13 +35,14 @@ export class SkillSelector implements Component, Focusable {
       this.filter === "All" ||
       (this.filter === "Active" && this.enabled(entry)) ||
       (this.filter === "Inactive" && !this.enabled(entry)) ||
-      (this.filter === "Changed" && this.pending.has(entry)),
+      (this.filter === "Changed" && (this.pending.has(entry) || this.removals.has(entry))),
     );
     const query = this.search.getValue();
     return query ? fuzzyFilter(entries, query, ({ skill }) => `${plain(skill.name)} ${plain(skill.description)} ${plain(skill.filePath)}`) : entries;
   }
 
   private stage(entry: SkillEntry, enabled: boolean): void {
+    if (this.removals.has(entry)) return;
     if (!canToggle(entry)) {
       this.notice = "This skill is controlled by the CLI or another extension.";
       return;
@@ -54,7 +57,10 @@ export class SkillSelector implements Component, Focusable {
     const previous = visible[this.selected];
     this.notice = "";
     if (matchesKey(data, Key.ctrl("s"))) {
-      this.done([...this.pending].map(([entry, enabled]) => ({ entry, enabled })));
+      this.done([
+        ...[...this.pending].filter(([entry]) => !this.removals.has(entry)).map(([entry, enabled]) => ({ entry, enabled })),
+        ...[...this.removals].map((entry) => ({ entry, enabled: false, uninstall: true as const })),
+      ]);
       return;
     }
     if (matchesKey(data, Key.escape)) { this.done(undefined); return; }
@@ -70,7 +76,13 @@ export class SkillSelector implements Component, Focusable {
     } else if (kb.matches(data, "tui.select.down")) {
       this.selected = visible.length ? (this.selected + 1) % visible.length : 0;
     } else if (kb.matches(data, "tui.select.confirm")) {
-      if (previous) this.stage(previous, !this.enabled(previous));
+      if (previous && this.removals.has(previous)) this.removals.delete(previous);
+      else if (previous) this.stage(previous, !this.enabled(previous));
+    } else if (matchesKey(data, Key.ctrl("x"))) {
+      if (previous?.installation) {
+        if (this.removals.has(previous)) this.removals.delete(previous);
+        else this.removals.add(previous);
+      } else this.notice = "Only downloads tracked by the skills CLI can be uninstalled here.";
     } else if (matchesKey(data, Key.ctrl("a")) || matchesKey(data, Key.ctrl("d"))) {
       const enabled = matchesKey(data, Key.ctrl("a"));
       for (const entry of visible) if (canToggle(entry)) this.stage(entry, enabled);
@@ -107,12 +119,13 @@ export class SkillSelector implements Component, Focusable {
       const entry = visible[i];
       const selected = i === this.selected;
       const checked = this.enabled(entry);
-      const changed = this.pending.has(entry);
+      const changed = this.pending.has(entry) || this.removals.has(entry);
       const tags = [
         entry.resource?.metadata.scope ?? "external",
         ...(!canToggle(entry) ? ["read-only"] : []),
         ...(checked && !entry.active && !changed ? ["not loaded"] : []),
         ...(changed ? ["changed"] : []),
+        ...(this.removals.has(entry) ? ["uninstall"] : []),
       ];
       const label = `${selected ? ">" : " "} [${checked ? "x" : " "}] ${plain(entry.skill.name)}`;
       rows.push((selected ? theme.fg("accent", label) : label) + theme.fg("muted", `  ${tags.join(" · ")}`));
@@ -121,10 +134,12 @@ export class SkillSelector implements Component, Focusable {
     rows.push("", theme.fg("muted", `${visible.length ? this.selected + 1 : 0}/${visible.length} shown · ${this.entries.filter((entry) => this.enabled(entry)).length}/${this.entries.length} active`));
     const selected = visible[this.selected];
     if (selected) rows.push(theme.fg("muted", plain(selected.skill.description)));
+    const count = new Set([...this.pending.keys(), ...this.removals]).size;
     rows.push(
-      this.pending.size ? theme.fg("warning", `${this.pending.size} unsaved change${this.pending.size === 1 ? "" : "s"}`) : theme.fg("muted", "No unsaved changes"),
+      count ? theme.fg("warning", `${count} unsaved change${count === 1 ? "" : "s"}`) : theme.fg("muted", "No unsaved changes"),
       theme.fg("dim", "↑/↓ move · Enter toggle · Tab filter · type to search"),
       theme.fg("dim", "Ctrl+A enable shown · Ctrl+D disable shown · Ctrl+S save · Esc cancel"),
+      theme.fg("dim", "Ctrl+X mark or undo uninstall · Ctrl+S applies it"),
     );
     if (this.notice) rows.push(theme.fg("warning", this.notice));
     rows.push(theme.fg("border", "─".repeat(Math.max(0, width))));

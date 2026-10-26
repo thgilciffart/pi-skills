@@ -20,6 +20,10 @@ export function updateArgs(name: string | undefined, global: boolean): string[] 
   return ["update", ...(name ? [validateSlug(name)] : []), global ? "--global" : "--project", "--yes"];
 }
 
+export function uninstallArgs(name: string, global: boolean): string[] {
+  return ["remove", validateSlug(name), "--yes", ...(global ? ["--global"] : [])];
+}
+
 export function browserCommand(url: string, platform = process.platform): { command: string; args: string[] } {
   const parsed = new URL(url);
   if (parsed.protocol !== "https:" || parsed.hostname !== "skills.sh" || parsed.username || parsed.password || parsed.port) {

@@ -12,6 +12,8 @@ npm test
 
 The tests use temporary directories to verify settings persistence through Pi's resource loader. Picker tests cover draft changes, filtering, bulk actions, Ctrl+S, and cancellation. Catalog picker tests cover search, previews, mouse selection, shortcuts, installation scopes, request cancellation, and terminal sizing. Catalog API tests use fixture responses and do not contact skills.sh or GitHub.
 
+Uninstall tests check scope and repository matching, staged removal, and cancellation. A test invokes the installed skills CLI in a temporary project to verify that uninstall removes the selected skill and lock entry while preserving another skill's files.
+
 To load the working copy in Pi, run the following command from the repository root.
 
 ```bash
@@ -20,7 +22,7 @@ pi --extension ./src/index.ts
 
 Run `/skills` to open the picker. Toggle several skills with Enter, change filters with Tab, and press Esc to verify that the draft is discarded. Reopen the picker and press Ctrl+S after changes to save them and reload Pi's resources. Run `/skills find typescript` to check the live catalog.
 
-In the catalog picker, use Ctrl+F to search again. Move between results to check their descriptions and update dates. Press **b** to check browser launch. The **p** and **g** keys install immediately in project and global scope.
+In the catalog picker, use Ctrl+F to search again. Move between results to check their descriptions and update dates. Press **b** to check browser launch. The **p** and **g** keys install immediately in project and global scope. The **u** and Shift+U keys uninstall from those scopes.
 
 ## Inspect the npm package
 

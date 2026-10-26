@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
-import { browserCommand, installArgs, skillsCliPath, updateArgs } from "../src/cli.ts";
+import { browserCommand, installArgs, skillsCliPath, uninstallArgs, updateArgs } from "../src/cli.ts";
 
 test("the installed CLI resolves without npx or a shell", () => {
   assert.equal(existsSync(skillsCliPath()), true);
@@ -14,6 +14,12 @@ test("the installed CLI resolves without npx or a shell", () => {
 test("updates always select an explicit scope", () => {
   assert.deepEqual(updateArgs(undefined, false), ["update", "--project", "--yes"]);
   assert.deepEqual(updateArgs("test-skill", true), ["update", "test-skill", "--global", "--yes"]);
+});
+
+test("uninstall names cannot turn into flags or all-skills removal", () => {
+  assert.deepEqual(uninstallArgs("test-skill", false), ["remove", "test-skill", "--yes"]);
+  assert.deepEqual(uninstallArgs("test-skill", true), ["remove", "test-skill", "--yes", "--global"]);
+  for (const name of ["--all", "*", "../skill"]) assert.throws(() => uninstallArgs(name, false));
 });
 
 test("browser links stay on skills.sh on supported platforms", () => {

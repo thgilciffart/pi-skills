@@ -120,3 +120,31 @@ test("rendering fits narrow terminals and empty views remain usable", () => {
   h.key("\x13");
   assert.deepEqual(h.results, [[]]);
 });
+
+test("uninstalls stay in the draft until Ctrl+S and can be undone", () => {
+  const skill = entry("download", true);
+  skill.installation = { name: "download", source: "owner/repo", global: false, filePath: skill.skill.filePath };
+  const h = harness([skill]);
+  h.key("\x18");
+  assert.match(h.text(), /changed · uninstall/);
+  assert.equal(h.results.length, 0);
+  h.key("\x18");
+  assert.match(h.text(), /No unsaved changes/);
+  h.key("\r");
+  h.key("\x18");
+  assert.match(h.text(), /1 unsaved change/);
+  h.key("\x13");
+  assert.deepEqual(h.results, [[{ entry: skill, enabled: false, uninstall: true }]]);
+});
+
+test("uninstall drafts cancel with Esc and unmanaged skills cannot be marked", () => {
+  const skill = entry("download", true);
+  skill.installation = { name: "download", source: "owner/repo", global: true, filePath: skill.skill.filePath };
+  const h = harness([skill, entry("manual", true)]);
+  h.key("\x18");
+  h.key("\x1b[B");
+  h.key("\x18");
+  assert.match(h.text(), /Only downloads tracked/);
+  h.key("\x1b");
+  assert.deepEqual(h.results, [undefined]);
+});

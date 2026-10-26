@@ -3,11 +3,13 @@ import {
   DefaultPackageManager, getAgentDir, loadSkills, SettingsManager,
   type ResolvedResource, type Skill,
 } from "@earendil-works/pi-coding-agent";
+import { installedSkills, type Installation } from "./installations.ts";
 
 export interface SkillEntry {
   skill: Skill;
   resource?: ResolvedResource;
   active: boolean;
+  installation?: Installation;
 }
 
 export async function discoverSkills(cwd: string, trusted: boolean, activeSkills: Skill[], agentDir = getAgentDir()) {
@@ -31,6 +33,13 @@ export async function discoverSkills(cwd: string, trusted: boolean, activeSkills
     if (entry) entry.skill = skill;
     else entries.set(key, { skill, active: true });
   }
+  const installations = [
+    ...(trusted ? await installedSkills(cwd, false).catch(() => []) : []),
+    ...await installedSkills(cwd, true).catch(() => []),
+  ];
+  for (const entry of entries.values()) {
+    entry.installation = installations.find((installation) => resolve(installation.filePath) === resolve(entry.skill.filePath));
+  }
   return { settings, entries: [...entries.values()].sort((a, b) => a.skill.name.localeCompare(b.skill.name)) };
 }
 
@@ -42,6 +51,7 @@ export function replaceOverride(paths: string[], pattern: string, enabled: boole
 export interface SkillChange {
   entry: SkillEntry;
   enabled: boolean;
+  uninstall?: true;
 }
 
 export function isEnabled(entry: SkillEntry): boolean {
