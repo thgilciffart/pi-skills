@@ -1,82 +1,42 @@
 # pi-skills
 
-Manage skills from inside the [Pi coding agent](https://pi.dev). Browse skills and their directories in one picker, save your selections with Ctrl+S, and install skills from [skills.sh](https://skills.sh).
+Choose which skills [Pi](https://pi.dev) loads, and find, install, or update skills from [skills.sh](https://skills.sh).
 
-## Install the plugin
+## Install
 
-Use Node.js 22.20 or later and Pi 1.4 or later.
+Requires Node.js 22.20 or later and Pi 1.4 or later.
 
-```bash
+```sh
 pi install npm:@thgilciffart/pi-skills
 ```
 
-Until the npm package is published, install from a local checkout.
+Run `/reload` in an open Pi session.
 
-```bash
-npm ci --ignore-scripts
-pi install .
-```
+## Choose skills
 
-Run `/reload` in an open Pi session after installation.
+Run `/skills` to open the picker. Type to search by name, description, or directory. Use Up and Down to move, Enter to toggle a skill, and Tab to cycle through All, Active, Inactive, and Changed.
 
-## Choose which skills Pi loads
+Ctrl+A enables every editable skill in the current view. Ctrl+D disables them. Ctrl+X marks a tracked download for uninstall; press it again to undo the mark.
 
-Run `/skills` to open the picker. Each skill shows its discovery directory and a checkbox, `[x]` for enabled and `[ ]` for disabled.
+Press Ctrl+S to apply changes and reload Pi's resources. Esc discards the draft. Uninstalling a shared download also removes it for other agents in that scope.
 
-Use the arrow keys to move and Enter to toggle a skill. The picker stays open so you can change several selections. Type to search by name, description, or directory. Press Tab to cycle through **All**, **Active**, **Inactive**, and **Changed**.
-
-Press Ctrl+A to enable every skill in the current view, or Ctrl+D to disable them. Press Ctrl+S to save all changes and reload Pi's resources once. Press Esc to close the picker and discard unsaved changes.
-
-To uninstall a downloaded skill, highlight it and press Ctrl+X. Press Ctrl+S to apply the uninstall, or press Ctrl+X again to undo the mark. Only downloads tracked by the skills CLI can be uninstalled this way.
-
-## Find and install a skill
-
-Search the skills.sh catalog.
+## Find and manage downloads
 
 ```text
 /skills find react performance
-```
-
-Search opens a full-screen picker. Each result shows its repository, installation count, and last update date when available. Move with the arrow keys, or hover over a result, to read its description below the list.
-
-Press **b** to open the highlighted skill in your browser, **p** to install it in the project, or **g** to install it globally. Press **u** to uninstall it from the project, or Shift+U to uninstall it globally. Press Ctrl+F or **/** to enter another search. Install and uninstall actions keep the picker open. Press Esc when finished to close it and reload Pi's resources after these actions.
-
-To install a known skill without the search menu, specify its repository and skill name.
-
-```text
 /skills install vercel-labs/agent-skills vercel-react-best-practices
-```
-
-Add `--global` to install for your user account. Project installs require project trust in Pi.
-
-## Uninstall a downloaded skill
-
-Use the picker shortcuts above, or run the uninstall command.
-
-```text
 /skills uninstall vercel-react-best-practices
-/skills uninstall vercel-react-best-practices --global
-```
-
-The command defaults to the current project. Uninstall removes the downloaded files, the lock entry, and the skill's links for other agents in that scope. See the [uninstall reference](docs/commands.md#uninstall-scope) for shared skill locations and scope limits.
-
-## Update downloaded skills
-
-Run `/skills update` for skills tracked by the skills CLI in the current project. Use `--global` for your user account.
-
-```text
 /skills update
-/skills update vercel-react-best-practices --global
 ```
 
-Commit local skill edits before updating. The skills CLI can replace downloaded files. Pi reloads its resources after the CLI succeeds.
+Commands default to project scope. Add `--global` to install, uninstall, or update for your user account. Project installs and uninstalls require Pi project trust.
 
-For a skill without a supported upstream update, ask the agent to research it.
+Catalog search opens a picker. Press **b** to open a result in your browser, **p** to install it in the project, or **g** to install globally. Press **u** to uninstall from the project or Shift+U to uninstall globally. Ctrl+F starts another search. These actions run immediately; Esc closes the picker and reloads resources after changes.
 
-```text
-/skills update-agent frontend-design
-```
+Updates apply to skills tracked by the skills CLI. Commit local edits first because updates can replace downloaded files.
 
-Omit the name to include every discovered skill. This command starts an agent request that uses your existing browsing tools. If those tools are unavailable, the agent asks how to continue.
+For manually installed skills, `/skills update-agent <name>` asks the current agent to research an update using its available tools. Omit the name to include all discovered skills.
 
-See the [command reference](docs/commands.md) for scope, discovery, and update limits. See [development and publishing](docs/development.md) to test or release the package.
+See the [command reference](docs/commands.md) for controls, discovery, and scope limits, or [development guide](docs/development.md) for checks and releases.
+
+[MIT license](LICENSE).

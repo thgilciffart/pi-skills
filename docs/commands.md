@@ -1,121 +1,91 @@
 # Command reference
 
-The plugin registers one Pi command, `/skills`.
+## Commands
 
 | Command | Result |
 | --- | --- |
-| `/skills` | Opens the skill picker in Pi's terminal UI. Other modes display all discovered skills. |
-| `/skills find [query]` | Opens the full-screen catalog picker. An omitted query focuses its search field. |
-| `/skills install <owner/repo> <skill> [--global]` | Downloads one GitHub skill through the skills CLI. |
-| `/skills uninstall <skill> [--global \| --project]` | Uninstalls a skill tracked by the skills CLI in the selected scope. |
-| `/skills update [name] [--global \| --project]` | Updates skills tracked by the skills CLI in the selected scope. |
-| `/skills update-agent [name]` | Sends an agent request to research and update the specified skill, or all discovered skills. |
+| `/skills` | Opens the skill picker. Other modes list discovered skills. |
+| `/skills find [query]` | Opens catalog search. An omitted query focuses the search field. |
+| `/skills install <owner/repo> <skill> [--global]` | Downloads a GitHub skill through the skills CLI. |
+| `/skills uninstall <skill> [--global \| --project]` | Removes a tracked download in the selected scope. |
+| `/skills update [name] [--global \| --project]` | Updates tracked downloads in the selected scope. |
+| `/skills update-agent [name]` | Asks the agent to research and update a skill, or all discovered skills. |
 | `/skills help` | Displays command help. |
 
 ## Skill picker
 
-The picker starts with every discovered skill. Each row shows a checkbox, name, scope, and discovery directory. The selected skill's description appears below the list.
+Rows show a checkbox, name, scope, and discovery directory. The highlighted skill's description appears below the list.
 
 | Key | Action |
 | --- | --- |
-| Up and Down | Move the selection. |
-| Enter | Toggle the selected skill and keep the picker open. |
-| Tab | Cycle through All, Active, Inactive, and Changed. |
-| Shift+Tab | Cycle through filters in reverse. |
-| Text input | Search names, descriptions, and directories. |
-| Ctrl+A | Enable every editable skill in the filtered view. |
-| Ctrl+D | Disable every editable skill in the filtered view. |
-| Ctrl+X | Mark the highlighted download for uninstall, or undo its uninstall mark. |
-| Ctrl+S | Save all pending changes and close the picker. |
-| Esc | Close the picker and discard pending changes. |
-| Ctrl+C | Clear the search, or cancel if the search is empty. |
+| Up, Down | Move the selection. |
+| Enter | Toggle the selected skill. On a marked uninstall, undo the mark. |
+| Tab, Shift+Tab | Cycle forward or backward through All, Active, Inactive, and Changed. |
+| Text | Search names, descriptions, and directories within the current filter. |
+| Ctrl+A, Ctrl+D | Enable or disable all editable skills in the current view. |
+| Ctrl+X | Mark a tracked download for uninstall or undo the mark. |
+| Ctrl+S | Save pending changes and close. |
+| Esc | Discard pending changes and close. |
+| Ctrl+C | Clear the search, or cancel when it is empty. |
 
-`[x]` means enabled in the pending configuration. `[ ]` means disabled. Active filters checked skills, Inactive filters unchecked skills, and Changed filters skills with unsaved changes. Search narrows the current filter. Changes remain pending across filters and searches. Toggling a skill back to its original state removes its pending change.
+`[x]` means enabled in the draft, and `[ ]` means disabled. Changed shows unsaved changes. Bulk toggles leave uninstall marks intact.
 
-An `uninstall` label marks a pending removal. Ctrl+S applies it. Esc discards it. Enter on a marked skill also undoes the uninstall mark. Bulk enable and disable actions leave uninstall marks intact.
+Ctrl+S writes changes to each skill's existing scope through Pi's settings manager. Package skills use the package's `skills` filter; other skills use exact path overrides. A successful save with changes reloads Pi's resources once. Saving without changes or cancelling does not write settings or reload resources.
 
-## Discovery and loaded skills
+## Discovery
 
-Discovery uses Pi's package resolver and skill loader. It includes trusted project skills, user skills, configured paths, and installed package skills. Missing packages are skipped during discovery.
+Pi's package resolver and skill loader discover trusted project skills, user skills, configured paths, and installed package skills. Missing packages are skipped.
 
-Skills supplied through the CLI or another extension also appear. Skills with no persistent source entry have a `read-only` label and cannot be toggled. Bulk actions skip these skills.
+Skills from CLI arguments or other extensions also appear. A `read-only` skill has no persistent source entry and cannot be toggled. Bulk actions skip it.
 
-The checkboxes represent configuration. A checked skill with a `not loaded` label is enabled in settings but absent from the current session's loaded skills. Duplicate names and startup options can cause this state. A skill with `disable-model-invocation: true` remains checked when enabled, even though Pi omits it from the system prompt.
+Checkboxes represent configuration, not current loading. An enabled skill may show `not loaded` because of duplicate names or startup options. `disable-model-invocation: true` does not change the enabled state.
 
-The directory distinguishes skills that share a name. The `update-agent` command also accepts an exact name, a full skill directory, or a `SKILL.md` path.
+## Catalog picker
 
-## Toggle persistence
-
-Toggles change an in-memory draft. Ctrl+S writes all changes to each skill's existing user or project scope through Pi's `SettingsManager`. Package skills use the package's `skills` filter. Other skills use exact path overrides in the settings `skills` array. Other resource filters remain intact.
-
-A successful save with changes reloads Pi's extensions, skills, prompts, themes, and context files once. Closing with Esc or Ctrl+C does not write settings or reload resources. Ctrl+S with no changes closes the picker without writing settings or reloading resources.
-
-## Catalog search
-
-Search opens a full-screen overlay over the current Pi session. It returns up to ten GitHub skills through the public `/api/search` endpoint used by the skills CLI. Results appear before their detail requests finish.
+Search returns up to ten GitHub skills from the skills.sh search API. Descriptions and update dates load in the background.
 
 | Key | Action |
 | --- | --- |
-| Up and Down | Highlight a result. |
-| Mouse hover or click | Highlight a result when terminal mouse events are available. |
-| Mouse wheel | Move through the results. |
-| Ctrl+F or `/` | Clear and focus the search field for a new query. |
-| Enter in the search field | Submit the query. |
-| Tab in the search field | Return to the existing results. |
-| `b` in the results | Open the highlighted skill on skills.sh in the default browser. |
-| `p` in the results | Install the highlighted skill in the current project. |
-| `g` in the results | Install the highlighted skill globally. |
-| `u` in the results | Uninstall the highlighted skill from the current project. |
-| Shift+U in the results | Uninstall the highlighted skill globally. |
-| Esc or Ctrl+C | Close the picker. |
+| Up, Down | Highlight a result. |
+| Mouse hover, click, wheel | Select or scroll when the terminal forwards mouse events. |
+| Ctrl+F, `/` | Focus and clear the search field. |
+| Enter in search | Submit the query. |
+| Tab in search | Return to the results. |
+| `b` | Open the highlighted skill in a browser. |
+| `p`, `g` | Install in project or global scope. |
+| `u`, Shift+U | Uninstall from project or global scope. |
+| Esc, Ctrl+C | Close. |
 
-The list shows skill names, repositories, installation counts, and update dates. The highlighted skill's description appears in the preview below the list. Narrow terminals show a compact list and retain the metadata in the preview. Descriptions come from the search response when provided, or from the skill page's structured data or description metadata.
+Install and uninstall run immediately and keep the picker open. Closing is disabled during an operation. Pi reloads resources once on close after an install or uninstall attempt.
 
-Update dates come from skills.sh when its search response provides them. Otherwise, the plugin matches the skill's directory through GitHub's repository tree and reads the latest commit affecting that directory, including supporting files. Dates use UTC. Ambiguous matches, incomplete repository trees, unavailable metadata, and GitHub rate limits produce an unknown date. The plugin does not substitute the repository's overall update date.
+Dates come from skills.sh or the latest GitHub commit affecting the matched skill directory. They use UTC. Missing or ambiguous metadata produces an unknown date. The repository's overall update date is not used.
 
-Details load in the background for at most three skills at a time. The highlighted result moves to the front of the remaining queue. Search requests time out after 15 seconds. Individual description and GitHub requests time out after 5 seconds. Repository trees are cached for the picker. A failed detail request does not remove a result. A new search cancels old requests, and closing the picker cancels remaining metadata requests.
+Search times out after 15 seconds; individual metadata requests time out after 5 seconds. Failed metadata requests leave results available. A new search or closing the picker cancels outstanding metadata requests.
 
-Install and uninstall actions run immediately and keep the picker open. Shortcuts do not start parallel operations. A successful installation has an installed marker, and repeating the same scope is skipped during that picker session. Uninstall clears that scope's marker and permits reinstallation. Pi reloads its resources once when the picker closes after an install or uninstall attempt. Closing is disabled while an action runs.
-
-If browser launch fails, the status line includes the skill's URL.
-
-In sessions without dialog support, search displays results and URLs. Installation remains available through `/skills install`.
+Without dialog support, search displays results and URLs. `/skills install` remains available.
 
 ## Install and update scope
 
-Install and update default to project scope. `--project` explicitly selects project scope. `--global` selects user scope. The two flags cannot be combined.
+Project scope is the default. `--project` selects it explicitly; `--global` selects user scope. The flags cannot be combined. Project installs and uninstalls require Pi project trust.
 
-The plugin invokes the installed `skills` CLI dependency through Node.js. It does not fetch a CLI through `npx` at command time. Installation passes `--agent pi --yes`. The CLI uses `.agents/skills` in the project for project installs and `~/.agents/skills` for global installs. Pi discovers both locations.
+The plugin runs its installed `skills` dependency through Node.js, with `--agent pi --yes` for installs. Node.js must be on `PATH`, including when Pi runs as a compiled Bun executable.
 
-Node.js must be available on `PATH` when Pi runs as a compiled Bun executable.
+Downloads live in `.agents/skills` for projects or `~/.agents/skills` globally. Updates use the CLI's lock files and may include downloads for other agents in that scope. Manually copied skills and skills inside Pi packages do not receive these updates.
 
-Automatic updates use the skills CLI's lock files. They can include skills installed by that CLI for other agents in the selected scope. The plugin does not update arbitrary manually copied skills or skills inside Pi packages. Pi package skills follow their package's update process.
-
-CLI operations time out after three minutes. A failed or interrupted operation may have changed some files. The plugin displays the CLI output, and `/reload` refreshes Pi after partial changes.
-
-The skills CLI has its own network requests and installation telemetry. It honors the `DISABLE_TELEMETRY` and `DO_NOT_TRACK` environment variables.
+CLI operations time out after three minutes. Failed or interrupted operations may leave partial changes; `/reload` refreshes Pi afterward. The CLI honors `DISABLE_TELEMETRY` and `DO_NOT_TRACK`.
 
 ## Uninstall scope
 
-Uninstall defaults to project scope. `--global` selects user scope. Project uninstalls require Pi project trust. The command accepts one skill name and rejects wildcard removal. Catalog shortcuts also verify that the installed source matches the highlighted repository.
+Uninstall accepts one tracked skill name and rejects wildcard removal. Catalog shortcuts verify that the installed source matches the selected repository.
 
-The plugin reads `skills-lock.json` in the current project and the skills CLI's global `.skill-lock.json`. The global lock lives in `~/.agents` unless `XDG_STATE_HOME` selects its state directory. Discovery associates these entries with their canonical `.agents/skills/<name>` directories. Manually copied skills without a lock entry, skills supplied by Pi packages, and skills inherited from another project's directory have no uninstall action here.
+Tracking uses project `skills-lock.json` and the CLI's global `.skill-lock.json`. The global lock is under `~/.agents` unless `XDG_STATE_HOME` selects another state directory. Manually copied skills, Pi package skills, and skills inherited from another project cannot be uninstalled here.
 
-Uninstall invokes `skills remove <name> --yes` with `--global` for user scope. The skills CLI removes the canonical download, its lock entry, and its agent links in that scope. These directories can be shared by Pi and other agents, so uninstall also removes the shared skill for those agents. Disabling a skill in `/skills` changes only Pi's loading configuration.
+Removal deletes the canonical download, its lock entry, and agent links in that scope. Other agents sharing that download lose it too. Disabling a skill changes only Pi's loading settings.
 
-The plugin checks that the skill directory and lock entry are gone after the CLI returns. Either one remaining produces an error. Existing Pi settings overrides for that path remain in place.
+The plugin verifies that both the directory and lock entry are gone. Existing Pi path overrides remain in settings.
 
 ## Agent-assisted updates
 
-`/skills update-agent` sends a user message to the current agent with the selected skills' names and file paths. The request asks the agent to find upstream sources, verify current instructions, preserve local edits, and report changes. Its result depends on the agent and tools available in that session. The plugin registers no model tools and bundles no web search tool.
+`update-agent` sends a user message containing skill names and paths. The request asks the current agent to find upstream sources, check instructions, preserve local edits, and report changes. Results depend on the agent's available tools; this plugin supplies no browsing tool.
 
-The agent request includes disabled skills when no name is specified. A named skill must exist in the discovered inventory. `all` also selects the full inventory.
-
-## Upstream references
-
-- [Pi package format and gallery discovery](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md)
-- [Pi skill discovery](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md)
-- [skills.sh search client](https://github.com/vercel-labs/skills/blob/main/src/find.ts)
-- [skills CLI](https://github.com/vercel-labs/skills)
-- [GitHub commits API](https://docs.github.com/en/rest/commits/commits#list-commits)
-- [GitHub repository trees API](https://docs.github.com/en/rest/git/trees#get-a-tree)
+A name, full skill directory, or `SKILL.md` path selects a discovered skill. Omitting the argument, or using `all`, includes disabled skills too.
