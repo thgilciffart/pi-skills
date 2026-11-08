@@ -1,6 +1,6 @@
 {
   "name": "@thgilciffart/pi-skills",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browse, toggle, find, install, and update skills in the Pi coding agent.",
   "type": "module",
   "license": "MIT",
@@ -11,11 +11,30 @@
   },
   "homepage": "https://github.com/thgilciffart/pi-skills#readme",
   "bugs": "https://github.com/thgilciffart/pi-skills/issues",
-  "keywords": ["pi-package", "pi", "skills", "skills.sh", "agent-skills"],
-  "files": ["src", "docs", "README.md", "LICENSE"],
-  "pi": { "extensions": ["./src/index.ts"] },
-  "engines": { "node": ">=22.20.0" },
-  "publishConfig": { "access": "public" },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "skills",
+    "skills.sh",
+    "agent-skills"
+  ],
+  "files": [
+    "src",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "check": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
@@ -25,9 +44,13 @@
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*"
   },
-  "dependencies": { "skills": "1.7.4" },
+  "dependencies": {
+    "skills": "1.7.4"
+  },
   "overrides": {
-    "@earendil-works/pi-coding-agent": { "undici": "^8.12.2" }
+    "@earendil-works/pi-coding-agent": {
+      "undici": "^8.12.2"
+    }
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.4.0",

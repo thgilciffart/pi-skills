@@ -1,6 +1,6 @@
 # pi-skills
 
-Choose which skills [Pi](https://pi.dev) loads, and find, install, or update skills from [skills.sh](https://skills.sh).
+Browse, toggle, find, install, and update skills from [skills.sh](https://skills.sh) in the [Pi](https://pi.dev) coding agent.
 
 ## Install
 
